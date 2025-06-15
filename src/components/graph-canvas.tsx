@@ -1,14 +1,18 @@
 import { useGraphStore } from "@/store/raw-graph-store";
 import { ReactFlow, type NodeChange, Background } from "@xyflow/react";
-import { edgeTypes } from "./CustomEdge";
+import { edgeTypes } from "./custom-edge-types";
+import { usePacketStore, getPacketColor } from "@/store/moving-packets-store";
+import { getStaticPacketColor, getStaticPacketIcon, useStaticPacketStore } from "@/store/static-packets-store";
+import { nodeTypes } from "./custom-node-types";
+
 
 export function GraphCanvas() {
     const { nodes, links } = useGraphStore((state) => state.graph)
     const positions = useGraphStore((state) => state.nodePositions)
-    const setNodePosition = useGraphStore((state) => state.setNodePosition)
+    const packets = usePacketStore((state) => state.packets);
+    const staticPackets = useStaticPacketStore((state) => state.packets);
 
-    console.log("Graph nodes:", nodes);
-    console.log("Graph links:", links);
+    const setNodePosition = useGraphStore((state) => state.setNodePosition)
 
     function getEdgeColor(technology: string): string {
         const hash = Array.from(technology).reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -16,11 +20,29 @@ export function GraphCanvas() {
         return `hsl(${hue}, 70%, 50%)`;
     }
 
-    const graphNodes = nodes.map((node) => ({
-        id: node.id,
-        data: { label: node.id },
-        position: positions[node.id],
-    }));
+    const graphNodes = [
+        // Original nodes
+        ...nodes.map((node) => ({
+            id: node.id,
+            data: { label: node.id },
+            position: positions[node.id],
+            type: "device"
+        })),
+
+        // Static packet nodes
+        ...staticPackets.map((packet, idx) => ({
+            id: `static-packet-${packet.node_id}-${idx}`,
+            data: {
+                label: packet.id,
+                icon: getStaticPacketIcon(packet.type),
+                color: getStaticPacketColor(packet.type),
+            },
+            position: positions[packet.node_id],
+            type: "packet",
+            draggable: false,
+            selectable: false,
+        })),
+    ];
 
     const grouped = new Map<string, string[]>();
 
@@ -34,17 +56,23 @@ export function GraphCanvas() {
 
         grouped.set(key, techList);
 
+        const matchingPacket = packets.find(
+            (p) => (p.source === link.source && p.target === link.target && p.technology === link.technology)
+                || (p.source === link.target && p.target === link.source && p.technology === link.technology)
+        );
+
         const offset = (techList.indexOf(link.technology) - (techList.length - 1) / 2) * 100;
 
         return {
             id: `${link.source}-${link.target}-${link.technology}`,
-            source: link.source,
-            target: link.target,
+            source: matchingPacket ? matchingPacket.source : link.source,
+            target: matchingPacket ? matchingPacket.target : link.target,
             label: link.technology,
-            type: "custom",
+            type: matchingPacket ? "animatedOffset" : "offset",
             data: {
                 technology: link.technology,
                 offset,
+                ...(matchingPacket && { packetColor: getPacketColor(matchingPacket.type) }),
             },
             style: {
                 stroke: getEdgeColor(link.technology),
@@ -73,6 +101,7 @@ export function GraphCanvas() {
             edges={graphLinks}
             onNodesChange={handleNodesChange}
             edgeTypes={edgeTypes}
+            nodeTypes={nodeTypes}
             fitView
         >
             <Background />
