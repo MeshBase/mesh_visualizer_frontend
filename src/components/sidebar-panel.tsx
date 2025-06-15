@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,7 +11,7 @@ import { setupWebSocket } from "@/lib/web-socket-util"
 export function SidebarPanel() {
     const [wsUrl, setWsUrl] = useState("ws://localhost:8000/ws");
     const connectionStatus = useConnectionStatusStore((state) => state.status);
-    const [closeSocket, setCloseSocket] = useState<() => void>(() => () => { });
+    const closeSocketRef = useRef<() => void>(() => { })
 
     const statusColorMap: Record<string, string> = {
         disconnected: "bg-red-500",
@@ -19,11 +19,11 @@ export function SidebarPanel() {
         connected: "bg-green-500",
     }
 
-    const handleConnect = () => {
+    const handleConnect = useCallback(() => {
         const result = setupWebSocket(wsUrl);
         console.log("WebSocket setup result:", result);
-        setCloseSocket(result.close);
-    }
+        closeSocketRef.current = result.close;
+    }, [wsUrl]);
 
     return (
         <Card className="w-72 h-full">
@@ -51,7 +51,11 @@ export function SidebarPanel() {
                         )}
 
                         {wsUrl && connectionStatus === "connecting" && (
-                            <Button onClick={closeSocket} variant="outline">
+                            <Button onClick={
+                                () => {
+                                    closeSocketRef.current();
+                                }
+                            } variant="outline">
                                 <Loader />
                             </Button>
                         )}
@@ -60,7 +64,7 @@ export function SidebarPanel() {
                             <Button onClick={
                                 () => {
                                     console.log("Closing WebSocket connection")
-                                    closeSocket();
+                                    closeSocketRef.current();
                                 }
                             } variant="outline">
                                 <OctagonX />

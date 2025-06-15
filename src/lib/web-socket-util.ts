@@ -1,9 +1,11 @@
 import { useConnectionStatusStore } from "@/store/connection-status-store"
 import { formatEventLog, useLogStore, type MeshEvent } from "@/store/log-store"
+import { extractGraph, useGraphStore } from "@/store/raw-graph-store"
 
 export function setupWebSocket(url: string) {
-    const setStatus = useConnectionStatusStore.getState().setStatus
     const addLog = useLogStore.getState().addLog
+    const setStatus = useConnectionStatusStore.getState().setStatus
+    const updateGraph = useGraphStore.getState().updateGraph
 
     let ws: WebSocket | null = null
 
@@ -27,7 +29,13 @@ export function setupWebSocket(url: string) {
 
         ws.onmessage = (msg) => {
             const event = JSON.parse(msg.data) as MeshEvent
+            console.log('Received event:', event)
             addLog(formatEventLog(event))
+            const graph = extractGraph(event)
+            console.log('Extracted graph:', graph)
+            if (graph) {
+                updateGraph(graph)
+            }
         }
 
         ws.onclose = () => {
