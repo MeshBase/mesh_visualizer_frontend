@@ -1,7 +1,7 @@
-import { useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { Loader, OctagonX, Cable } from "lucide-react"
@@ -11,7 +11,7 @@ import { setupWebSocket } from "@/lib/web-socket-util"
 export function SidebarPanel() {
     const [wsUrl, setWsUrl] = useState("ws://localhost:8000/ws");
     const connectionStatus = useConnectionStatusStore((state) => state.status);
-    const [closeSocket, setCloseSocket] = useState<() => void>(() => () => { });
+    const closeSocketRef = useRef<() => void>(() => { })
 
     const statusColorMap: Record<string, string> = {
         disconnected: "bg-red-500",
@@ -19,22 +19,25 @@ export function SidebarPanel() {
         connected: "bg-green-500",
     }
 
-    const handleConnect = () => {
+    const handleConnect = useCallback(() => {
         const result = setupWebSocket(wsUrl);
         console.log("WebSocket setup result:", result);
-        setCloseSocket(result.close);
-    }
+        closeSocketRef.current = result.close;
+    }, [wsUrl]);
 
     return (
         <Card className="w-72 h-full">
             <CardHeader>
                 <CardTitle className="text-lg">Control Panel</CardTitle>
+
+
             </CardHeader>
 
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 flex-1">
                 {/* WebSocket Input */}
                 <div className="space-y-2">
                     <Label htmlFor="ws-url" className="text-sm">WebSocket URL</Label>
+
                     <div className="flex gap-2">
                         <Input
                             id="ws-url"
@@ -51,7 +54,11 @@ export function SidebarPanel() {
                         )}
 
                         {wsUrl && connectionStatus === "connecting" && (
-                            <Button onClick={closeSocket} variant="outline">
+                            <Button onClick={
+                                () => {
+                                    closeSocketRef.current();
+                                }
+                            } variant="outline">
                                 <Loader />
                             </Button>
                         )}
@@ -60,7 +67,7 @@ export function SidebarPanel() {
                             <Button onClick={
                                 () => {
                                     console.log("Closing WebSocket connection")
-                                    closeSocket();
+                                    closeSocketRef.current();
                                 }
                             } variant="outline">
                                 <OctagonX />
@@ -70,24 +77,27 @@ export function SidebarPanel() {
                     </div>
                 </div>
 
+                {/* Packet Legend */}
+                <div className="my-10">
+                    <h2 className="text-sm font-semibold text-cyan-400 my-4">Packet Legend</h2>
+                    <div className="flex flex-wrap gap-4 text-sm">
+                        <LegendItem color="bg-green-400" label="Recieved" />
+                        <LegendItem color="bg-blue-400" label="Heartbeat" />
+                        <LegendItem color="bg-yellow-400" label="Data Packet" />
+                        <LegendItem color="bg-red-400" label="Dropped Packet" />
+                    </div>
+                </div>
+            </CardContent>
+            <CardFooter className="flex justify-between items-center">
+
                 <div className="flex items-center gap-2">
+                    <p>Status</p>
                     <div className={cn("h-3 w-3 rounded-full", statusColorMap[connectionStatus])} />
                     <span className="text-sm capitalize text-muted-foreground">
                         {connectionStatus}
                     </span>
                 </div>
-
-                {/* Packet Legend */}
-                <div className="space-y-2">
-                    <h2 className="text-sm font-semibold text-cyan-400">Packet Legend</h2>
-                    <div className="flex flex-wrap gap-4 text-sm">
-                        <LegendItem color="bg-green-400" label="Data Packet" />
-                        <LegendItem color="bg-blue-400" label="Heartbeat" />
-                        <LegendItem color="bg-yellow-400" label="Handshake" />
-                        <LegendItem color="bg-red-400" label="Dropped Packet" />
-                    </div>
-                </div>
-            </CardContent>
+            </CardFooter>
         </Card>
     )
 }
